@@ -52,7 +52,16 @@ def main():
             computer=computer,
             acknowledge_safety_check_callback=acknowledge_safety_check_callback,
         )
-        items = []
+        # Prepend a system message to steer the agent's behaviour
+        items = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a computer use agent helping automate desktop applications. "
+                    "Be precise and ask for confirmation before important actions."
+                ),
+            }
+        ]
 
         if args.computer in ["browserbase", "local-playwright"]:
             if not args.start_url.startswith("http"):

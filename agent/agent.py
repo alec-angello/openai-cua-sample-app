@@ -8,6 +8,8 @@ from utils import (
 )
 import json
 from typing import Callable
+import time
+import random
 
 
 class Agent:
@@ -123,12 +125,38 @@ class Agent:
         while new_items[-1].get("role") != "assistant" if new_items else True:
             self.debug_print([sanitize_message(msg) for msg in input_items + new_items])
 
-            response = create_response(
-                model=self.model,
-                input=input_items + new_items,
-                tools=self.tools,
-                truncation="auto",
-            )
+            # --- Retry loop to handle transient OpenAI 5xx errors gracefully ---
+            max_attempts = 5
+            backoff_base = 0.5  # starting back-off seconds
+            response = None
+            for attempt in range(max_attempts):
+                response = create_response(
+                    model=self.model,
+                    input=input_items + new_items,
+                    tools=self.tools,
+                    truncation="auto",
+                )
+
+                # Success path – API returned the expected output field
+                if "output" in response:
+                    break
+
+                # If an error was returned, retry ONLY on server_error (HTTP 500)
+                error = response.get("error", {})
+                if error.get("type") != "server_error":
+                    # Non-retryable (e.g., auth, rate-limit) – raise immediately
+                    raise RuntimeError(response)
+
+                # Exponential backoff with jitter
+                sleep_secs = backoff_base * (2 ** attempt) + random.random() * 0.1
+                if self.debug:
+                    print(
+                        f"Server error from OpenAI – retry {attempt + 1}/{max_attempts} after {sleep_secs:.2f}s"
+                    )
+                time.sleep(sleep_secs)
+
+            if response is None:
+                raise RuntimeError("Failed to get response from OpenAI after retries.")
             self.debug_print(response)
 
             if "output" not in response and self.debug:
