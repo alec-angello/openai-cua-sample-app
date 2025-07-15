@@ -3,6 +3,51 @@ from agent.agent import Agent
 from computers.config import *
 from computers.default import *
 from computers import computers_config
+# ---------------------
+# Define helper tools with top-level "name"/"description"/"parameters" as required by the
+# OpenAI Responses API (same schema used in examples/).
+
+VMWARE_HELPER_TOOLS = [
+    {
+        "type": "function",
+        "name": "vm_activate_login_screen",
+        "description": "Wake the Windows lock screen inside the powered-on VM.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "type": "function",
+        "name": "vm_login_with_password",
+        "description": "Type the given password (and optional username) in the VM login box and press Enter.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "password": {"type": "string", "description": "Windows account password"},
+                "username": {"type": "string", "description": "Optional username"},
+            },
+            "required": ["password"],
+        },
+    },
+    {
+        "type": "function",
+        "name": "vm_simple_login_flow",
+        "description": "Activate the lock screen and then log in using the supplied credentials.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "password": {"type": "string", "description": "Windows account password"},
+                "username": {"type": "string", "description": "Optional username"},
+            },
+            "required": ["password"],
+        },
+    },
+    {
+        "type": "function",
+        "name": "vm_try_wake_screen",
+        "description": "Try various keypresses/clicks to wake an unresponsive lock screen.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+]
+# ---------------------
 
 
 def acknowledge_safety_check_callback(message: str) -> bool:
@@ -47,26 +92,37 @@ def main():
     args = parser.parse_args()
     ComputerClass = computers_config[args.computer]
 
+    # Choose helper tools only when using the Windows desktop computer.
     with ComputerClass() as computer:
+        extra_tools = VMWARE_HELPER_TOOLS if args.computer == "windows-desktop" else []
         agent = Agent(
             computer=computer,
+            tools=extra_tools,
             acknowledge_safety_check_callback=acknowledge_safety_check_callback,
         )
         # Prepend a system message to steer the agent's behaviour
+        if args.computer == "windows-desktop":
+            # Use built-in VMware automation prompt for Windows desktop
+            system_content = computer.SYSTEM_PROMPT
+        else:
+            # Default system message for other computer types
+            system_content = (
+                "You are a computer use agent helping automate desktop applications. "
+                "Be precise and ask for confirmation before important actions."
+            )
+        
         items = [
             {
                 "role": "system",
-                "content": (
-                    "You are a computer use agent helping automate desktop applications. "
-                    "Be precise and ask for confirmation before important actions."
-                ),
+                "content": system_content,
             }
         ]
 
         if args.computer in ["browserbase", "local-playwright"]:
             if not args.start_url.startswith("http"):
                 args.start_url = "https://" + args.start_url
-            agent.computer.goto(args.start_url)
+            if hasattr(agent.computer, 'goto'):
+                agent.computer.goto(args.start_url)  # type: ignore[attr-defined]
 
         while True:
             try:

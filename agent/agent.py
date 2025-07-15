@@ -7,7 +7,7 @@ from utils import (
     check_blocklisted_url,
 )
 import json
-from typing import Callable
+from typing import Callable, Optional
 import time
 import random
 
@@ -22,12 +22,15 @@ class Agent:
     def __init__(
         self,
         model="computer-use-preview",
-        computer: Computer = None,
+        computer: Optional[Computer] = None,
         tools: list[dict] = [],
         acknowledge_safety_check_callback: Callable = lambda: False,
     ):
         self.model = model
-        self.computer = computer
+        if computer is None:
+            raise ValueError("'computer' argument cannot be None")
+        from typing import cast
+        self.computer = cast(Computer, computer)
         self.tools = tools
         self.print_steps = True
         self.debug = False
