@@ -2,7 +2,7 @@ import time
 import base64
 import io
 import logging
-from typing import List, Dict, Literal, Tuple
+from typing import List, Dict, Literal, Tuple, Optional
 from PIL import Image, ImageGrab
 import pyautogui
 import pygetwindow as gw
@@ -23,15 +23,27 @@ pyautogui.PAUSE = 0.1  # Small pause between actions for RDP latency
 
 class WindowsDesktopComputer:
     """
-    Windows desktop automation computer using pyautogui.
+    ENHANCED version: Windows desktop automation computer using pyautogui.
     Optimized for remote desktop (RDP) environments with specific handling
     for scaling, latency, and screenshot quality issues.
-    
-    Built-in VMware Workstation automation capabilities.
+    Includes comprehensive VMware Workstation helpers.
     """
     
     # Built-in system prompt for VMware automation
     SYSTEM_PROMPT = """You are a Windows desktop automation specialist focused on VMware Workstation. Act decisively and avoid unnecessary confirmations.
+
+## VMware Login Screen Protocol - CRITICAL
+When you encounter a Windows lock screen in the VM:
+1. **ALWAYS use vm_activate_login_screen() first** - this is a single click to wake the screen
+2. **Wait 2-3 seconds** after activation
+3. **ONLY THEN** use vm_login_with_password() when user provides credentials
+4. **NEVER click randomly** on the login screen - use the helper methods
+
+## Available VM Helper Methods (use these instead of manual clicks):
+- vm_activate_login_screen(): Single click to wake login screen - USE THIS FIRST
+- vm_login_with_password(password, username=None): Enter credentials and submit
+- vm_simple_login_flow(password, username=None): Complete activation + login process
+- vm_try_wake_screen(): Try various wake methods if screen unresponsive
 
 ## Automation Rules
 - **NO confirmations** for VM interactions (start, stop, click, type)
@@ -41,28 +53,14 @@ class WindowsDesktopComputer:
 - Only ask questions if instructions are genuinely unclear
 
 ## VMware Workflow
-1. **Launch VMware**: Double-click desktop icon, wait 3-5 seconds
+1. **Launch VMware**: Use Win+R, type "vmware", wait 3-5 seconds
 2. **Find VM**: Look in left sidebar or library panel
 3. **Start VM**: Click "Play virtual machine" or green play button
 4. **Handle dialogs**: Dismiss any warnings/performance notices with OK
-5. **VM Login**: Once the VM reaches the Windows lock screen, STOP and wait for further instructions.
-    - Do NOT click or press keys automatically
-    - The user will explicitly instruct when to activate the login screen and provide credentials
-    - Use helper methods only after user instruction (vm_activate_login_screen / vm_simple_login_flow)
-
-## Login Screen Protocol
-**Windows lock screen**: Dark screen with background image
-When user requests login activation: Use vm_activate_login_screen() method
-When user provides password: Use vm_login_with_password() method  
-For complete flow: Use vm_simple_login_flow() method
-NEVER make multiple random clicks after activating login screen
-ALWAYS wait for explicit user password before proceeding
-
-**Available VM methods:**
-- vm_activate_login_screen(): Single click to wake login screen
-- vm_login_with_password(password): Enter password and submit
-- vm_simple_login_flow(password): Complete login process
-- vm_try_wake_screen(): Try various wake methods if screen unresponsive
+5. **VM Login**: When you see the Windows lock screen, STOP and use helper methods:
+   - First call: vm_activate_login_screen()
+   - Wait for user to provide password
+   - Then call: vm_login_with_password(provided_password)
 
 ## Common Coordinates (1920x1080)
 - VMware icon: ~270, 950
@@ -71,12 +69,12 @@ ALWAYS wait for explicit user password before proceeding
 - VM window center: 960, 540
 
 ## Error Handling
-- If click fails → try center of screen
+- If vm_activate_login_screen() doesn't work → try vm_try_wake_screen()
+- If login fails → check caps lock, clear field completely, retry
 - If VM won't start → try right-click → Power → Start  
-- If login stuck → press spacebar or Enter first
 - If no response → take screenshot and retry
 
-Act fast, report actions, get things done."""
+Act fast, report actions, get things done. ALWAYS use the vm_* helper methods for login operations."""
 
     def __init__(self, 
                  action_delay: float = 0.2,
