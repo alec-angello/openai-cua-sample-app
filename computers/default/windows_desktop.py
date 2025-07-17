@@ -554,6 +554,10 @@ Act fast, report actions, get things done. ALWAYS use the vm_* helper methods fo
     def vm_activate_login_screen(self, vm_center_x: int | None = None, vm_center_y: int | None = None) -> bool:
         """Single click to wake the Windows lock screen inside the VM."""
         try:
+            # Ensure VMware window is focused and input is captured by sending Ctrl+G (Grab input)
+            self.keypress(["ctrl", "g"])  # VMware shortcut to capture keyboard/mouse
+            self.wait(500)
+
             if vm_center_x is None:
                 vm_center_x = self.width // 2
             if vm_center_y is None:
@@ -570,6 +574,10 @@ Act fast, report actions, get things done. ALWAYS use the vm_* helper methods fo
     def vm_login_with_password(self, password: str, username: str | None = None) -> bool:
         """Enter credentials and submit to log in inside the VM."""
         try:
+            # Ensure we still have input captured by the VM console
+            self.keypress(["ctrl", "g"])
+            self.wait(300)
+
             if username:
                 self.type(username)
                 self.keypress(["tab"])
@@ -607,3 +615,39 @@ Act fast, report actions, get things done. ALWAYS use the vm_* helper methods fo
             self.vm_activate_login_screen()
 
         return self.vm_login_with_password(password, username) 
+
+    def vm_open_application(self, command: str) -> bool:
+        """Open an application *inside the VM* using Win+R.
+
+        This helper ensures we are focused on the VM console (Ctrl+G), then
+        sends Win+R, types the command, and presses Enter.  It waits a few
+        seconds so the application can appear.
+
+        Args:
+            command: The run-dialog command or full path of the application
+                     to launch (e.g. 'notepad', 'cmd', 'C:\\Path\\app.exe').
+
+        Returns:
+            True if the key sequence executed without exception.
+        """
+        try:
+            # Make sure keystrokes go to the guest OS
+            self.keypress(["ctrl", "g"])
+            self.wait(300)
+
+            # Open Run dialog
+            self.keypress(["win", "r"])
+            self.wait(500)
+
+            # Type the command
+            self.type(command)
+            self.wait(300)
+
+            # Execute
+            self.keypress(["enter"])
+            self.wait(3000)  # give the app time to launch inside VM
+            logger.info(f"Issued Win+R command inside VM: {command}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to open application '{command}' inside VM: {e}")
+            return False 

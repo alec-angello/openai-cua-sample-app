@@ -38,6 +38,8 @@ class VMwareEnhancements:
         def type(self, text: str) -> None: ...
         def wait(self, milliseconds: int) -> None: ...
         def get_window_list(self) -> List[str]: ...
+        def get_active_window(self) -> str: ...
+        def activate_window(self, window_title: str) -> bool: ...
     
     def find_vmware_window(self) -> Optional[str]:
         """
@@ -52,6 +54,51 @@ class VMwareEnhancements:
                 logger.info(f"Found VMware window: {window}")
                 return window
         return None
+
+    # ------------------------------------------------------------------
+    # Window-focus helpers (implements WINDOW FOCUS PROTOCOL)
+    # ------------------------------------------------------------------
+    def ensure_vmware_focus(self, wait_seconds: float = 2.0) -> bool:
+        """Ensure a VMware Workstation window is the active foreground window.
+
+        1. Take an initial screenshot so the calling workflow can log what is
+           currently on screen.
+        2. Check the active window title; if it already contains "vmware",
+           nothing else is needed.
+        3. Otherwise, iterate through *all* open windows (`get_window_list()`)
+           and activate the first one whose title includes the word
+           "vmware".  Wait a short period to allow the OS to bring that
+           window to the front.
+        4. Take a second screenshot to confirm the window is now visible.
+
+        Args:
+            wait_seconds: Seconds to wait after activating the window.
+
+        Returns:
+            True when a VMware window is active, False otherwise.
+        """
+
+        # Step 1 – record current visual context
+        self.screenshot()
+
+        active_title = self.get_active_window()
+        if active_title and "vmware" in active_title.lower():
+            logger.debug("VMware is already the active window")
+            return True
+
+        # Step 3 – search and activate
+        vm_window = self.find_vmware_window()
+        if vm_window:
+            logger.info(f"Activating VMware window: {vm_window}")
+            if self.activate_window(vm_window):
+                self.wait(int(wait_seconds * 1000))
+                # Step 4 – confirm visually
+                self.screenshot()
+                active_after = self.get_active_window()
+                return bool(active_after and "vmware" in active_after.lower())
+
+        logger.warning("Unable to find or activate a VMware window – focus may be incorrect")
+        return False
     
     def launch_vmware(self, timeout: int = 30) -> bool:
         """
@@ -145,6 +192,8 @@ class VMwareEnhancements:
         Returns:
             True if clicked successfully
         """
+        # WINDOW FOCUS PROTOCOL – confirm VMware window is active
+        self.ensure_vmware_focus()
         # Typical toolbar button positions
         toolbar_y = 70  # Below menu bar
         start_button_x = 100  # Approximate position
@@ -166,6 +215,8 @@ class VMwareEnhancements:
         Returns:
             True if started successfully
         """
+        # WINDOW FOCUS PROTOCOL – confirm VMware window is active
+        self.ensure_vmware_focus()
         logger.info("Starting VM from context menu...")
         
         # Right-click on VM
@@ -233,6 +284,8 @@ class VMwareEnhancements:
         Returns:
             True if login appears successful
         """
+        # WINDOW FOCUS PROTOCOL – confirm VMware window is active
+        self.ensure_vmware_focus()
         logger.info("Performing VM login...")
         
         # Click in center of console to ensure focus

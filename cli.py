@@ -71,14 +71,14 @@ class VMwareAwareAgent(Agent):
         if item["type"] == "function_call":
             name, args = item["name"], json.loads(item["arguments"])
             if self.print_steps:
-                print(f"🔧 Calling VMware helper: {name}({args})")
+                print(f"Calling VMware helper: {name}({args})")
 
             # Handle VMware helper functions
             if hasattr(self.computer, name):
                 method = getattr(self.computer, name)
                 try:
                     result = method(**args)
-                    success_msg = f"✓ {name} completed successfully"
+                    success_msg = f"{name} completed successfully"
                     if isinstance(result, bool):
                         success_msg += f" (returned: {result})"
                     print(success_msg)
@@ -90,7 +90,7 @@ class VMwareAwareAgent(Agent):
                         }
                     ]
                 except Exception as e:
-                    error_msg = f"❌ {name} failed: {str(e)}"
+                    error_msg = f"{name} failed: {str(e)}"
                     print(error_msg)
                     return [
                         {
@@ -100,7 +100,7 @@ class VMwareAwareAgent(Agent):
                         }
                     ]
             else:
-                print(f"⚠️ Function {name} not found on computer")
+                print(f"Function {name} not found on computer")
                 return [
                     {
                         "type": "function_call_output",
@@ -114,7 +114,7 @@ class VMwareAwareAgent(Agent):
             action_type = action["type"]
             action_args = {k: v for k, v in action.items() if k != "type"}
             if self.print_steps:
-                print(f"🖱️ Computer action: {action_type}({action_args})")
+                print(f"Computer action: {action_type}({action_args})")
 
             method = getattr(self.computer, action_type)
             method(**action_args)
@@ -258,14 +258,14 @@ def main():
             if hasattr(agent.computer, "goto"):
                 agent.computer.goto(args.start_url)  # type: ignore[attr-defined]
 
-        print("🚀 Enhanced VMware Desktop Automation Ready!")
+        print("Enhanced VMware Desktop Automation Ready!")
         print("=" * 50)
         if args.computer == "windows-desktop":
             print("VMware Helper Functions Available:")
-            print("  • vm_activate_login_screen() - Wake VM login screen")
-            print("  • vm_login_with_password() - Enter credentials")
-            print("  • vm_simple_login_flow() - Complete login process")
-            print("  • vm_try_wake_screen() - Wake unresponsive screen")
+            print("  - vm_activate_login_screen() - Wake VM login screen")
+            print("  - vm_login_with_password() - Enter credentials")
+            print("  - vm_simple_login_flow() - Complete login process")
+            print("  - vm_try_wake_screen() - Wake unresponsive screen")
             print("=" * 50)
 
         while True:
